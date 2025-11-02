@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>رزرو گیم‌نت — ارسال SMS</title>
+  <style>
+    :root{--bg:#071025;--card:#0b1220;--accent:#7c3aed;--muted:#94a3b8}
+    body{font-family:iransans, Tahoma, Arial; background:linear-gradient(180deg,#07102a 0%, #061025 100%); color:#e6eef8; margin:0; padding:24px}
+    .wrap{max-width:900px;margin:30px auto;padding:22px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 8px;font-size:24px;text-align:center}
+    p.lead{color:var(--muted);text-align:center;margin:0 0 18px}
+    form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit}
+    .full{grid-column:1/-1}
+    .actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:6px}
+    button{background:var(--accent);color:white;padding:10px 14px;border:none;border-radius:10px;cursor:pointer;font-weight:600}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .note{font-size:13px;color:var(--muted);margin-top:8px}
+    #availability{margin-top:6px;color:#f5f5f5;font-weight:bold}
+    @media(max-width:720px){form{grid-template-columns:1fr} .actions{justify-content:stretch}}
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.6);visibility:hidden;opacity:0;transition:opacity .18s}
+    .modal.show{visibility:visible;opacity:1}
+    .modal .card{background:#071225;padding:18px;border-radius:10px;max-width:420px;width:90%;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>رزرو میز در گیم‌نت</h1>
+    <p class="lead">فرم زیر را پر کنید — تعداد سیستم خالی و ظرفیت باقی‌مانده نمایش داده می‌شود.</p>
+
+    <form id="reserveForm">
+      <div>
+        <label for="name">نام و نام خانوادگی</label>
+        <input id="name" name="name" type="text" placeholder="مثال: علی رضایی" required />
+      </div>
+
+      <div>
+        <label for="phone">شماره تماس</label>
+        <input id="phone" name="phone" type="tel" placeholder="09xxxxxxxx" required />
+      </div>
+
+      <div>
+        <label for="date">تاریخ رزرو</label>
+        <input id="date" name="date" type="date" required />
+      </div>
+
+      <div>
+        <label for="time">ساعت شروع</label>
+        <input id="time" name="time" type="time" required />
+      </div>
+
+      <div>
+        <label for="duration">مدت (ساعت)</label>
+        <select id="duration" name="duration">
+          <option value="1">1 ساعت</option>
+          <option value="2">2 ساعت</option>
+          <option value="3">3 ساعت</option>
+          <option value="4">4 ساعت</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="seats">تعداد سیستم</label>
+        <input id="seats" name="seats" type="number" min="1" max="19" value="1" required />
+        <p id="availability">سیستم‌های خالی: 19</p>
+      </div>
+
+      <div class="full">
+        <label for="game">بازی / توضیحات</label>
+        <input id="game" name="game" type="text" placeholder="مثال: CS:GO یا توضیحات اضافی" />
+      </div>
+
+      <div class="full">
+        <label for="notes">یادداشت (اختیاری)</label>
+        <textarea id="notes" name="notes" rows="3" placeholder="درخواست خاص، مثلاً صندلی کنار هم"></textarea>
+      </div>
+
+      <div class="full actions">
+        <button type="button" id="previewBtn" class="secondary">پیش‌نمایش</button>
+        <button type="submit">ارسال و آماده‌سازی SMS</button>
+      </div>
+
+      <p class="note full">توضیح: لینک SMS روی موبایل پیام‌رسان گوشی را باز می‌کند. در دسکتاپ متن پیام نمایش داده می‌شود.</p>
+    </form>
+  </div>
+
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="card">
+      <h3 id="modalTitle">پیام اس‌ام‌اس آماده شد</h3>
+      <p id="modalBody">اپ پیام‌رسان باز شد یا متن پیام زیر را کپی و ارسال کنید:</p>
+      <pre id="smsText" style="text-align:right;white-space:pre-wrap;background:#031226;color:#dbe9ff;padding:10px;border-radius:6px;margin-top:10px;font-size:13px;direction:ltr"></pre>
+      <div style="margin-top:12px;display:flex;gap:10px;justify-content:center">
+        <button id="modalOk">فهمیدم</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SMS_NUMBER = '+989381455579';
+    const MAX_SYSTEMS = 19;
+
+    let reservations = []; // ذخیره رزروهای قبلی
+
+    const form = document.getElementById('reserveForm');
+    const previewBtn = document.getElementById('previewBtn');
+    const modal = document.getElementById('modal');
+    const modalOk = document.getElementById('modalOk');
+    const smsTextPre = document.getElementById('smsText');
+    const seatsInput = document.getElementById('seats');
+    const availabilityP = document.getElementById('availability');
+    const dateInput = document.getElementById('date');
+    const timeInput = document.getElementById('time');
+
+    function gatherData(){
+      const fd = new FormData(form);
+      const obj = {};
+      for (const [k,v] of fd.entries()) obj[k]=v;
+      return obj;
+    }
+
+    function updateAvailability(){
+      const date = dateInput.value;
+      const time = timeInput.value;
+      let booked = 0;
+      reservations.forEach(r=>{
+        if(r.date===date && r.time===time){
+          booked += parseInt(r.seats);
+        }
+      });
+      const remaining = MAX_SYSTEMS - booked;
+      availabilityP.textContent = `سیستم‌های خالی: ${remaining}`;
+      // محدود کردن تعداد قابل رزرو
+      seatsInput.max = remaining > 0 ? remaining : 0;
+    }
+
+    previewBtn.addEventListener('click', ()=>{
+      const d = gatherData();
+      alert(`نام: ${d.name}\nشماره: ${d.phone}\nتاریخ: ${d.date} ${d.time}\nمدت: ${d.duration} ساعت\nسیستم‌ها: ${d.seats}\nبازی: ${d.game}\nیادداشت: ${d.notes}`);
+    });
+
+    dateInput.addEventListener('change', updateAvailability);
+    timeInput.addEventListener('change', updateAvailability);
+    seatsInput.addEventListener('input', updateAvailability);
+
+    form.addEventListener('submit', e=>{
+      e.preventDefault();
+      const data = gatherData();
+      // ذخیره رزرو
+      reservations.push({
+        date: data.date,
+        time: data.time,
+        seats: data.seats
+      });
+      updateAvailability();
+
+      const plainText = `رزرو جدید\nنام: ${data.name}\nشماره: ${data.phone}\nتاریخ: ${data.date} ${data.time}\nمدت: ${data.duration} ساعت\nسیستم‌ها: ${data.seats}\nبازی: ${data.game}\nیادداشت: ${data.notes}`;
+      smsTextPre.textContent = plainText;
+
+      const encoded = encodeURIComponent(plainText);
+      const smsLink = `sms:${SMS_NUMBER}?body=${encoded}`;
+      window.open(smsLink,'_blank');
+
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden','false');
+
+      form.reset();
+    });
+
+    modalOk.addEventListener('click', ()=>{
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden','true');
+    });
+
+    // مقدار اولیه
+    updateAvailability();
+  </script>
+</body>
+</html>
